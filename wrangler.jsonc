@@ -21,8 +21,8 @@
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "name_db",
-			"database_id": "...."
+			"database_name": "pixelaria_db",
+			"database_id": "e1ae1336-da22-42f5-8f75-4a7e9421d635"
 		}
 	]
 }
