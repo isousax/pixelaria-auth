@@ -1,0 +1,792 @@
+openapi: 3.0.0
+info:
+  title: Auth Engine API
+  version: 1.0.0
+  description: |
+    API de autenticação completa com JWT, rate limiting e RBAC.
+    
+    ## Características
+    - 🔐 Autenticação JWT (RS256/HS256)
+    - 🚦 Rate limiting inteligente
+    - 👥 RBAC (Role-Based Access Control)
+    - ✉️ Verificação de email via link seguro (token UUID)
+    - 🔄 Refresh tokens com rotação
+    - 🔑 Reset de senha seguro
+    
+    ## Autenticação
+    A maioria dos endpoints públicos não requer autenticação.
+    Endpoints protegidos requerem header `Authorization: Bearer {token}`.
+    
+    ## Rate Limiting
+    Endpoints sensíveis têm limites de requisições:
+    - Login/Register: 5 req/min
+    - Password Reset: 3 req/5min
+    - Change Password: 3 req/5min
+    
+    Headers de resposta:
+    - `X-RateLimit-Limit`: Limite máximo
+    - `X-RateLimit-Remaining`: Requisições restantes
+    - `X-RateLimit-Reset`: Timestamp de reset (Unix)
+
+  contact:
+    name: API Support
+    email: suporte@server.com
+  license:
+    name: MIT
+    
+servers:
+  - url: https://auth.server.com
+    description: Produção
+  - url: http://localhost:8787
+    description: Desenvolvimento local
+
+tags:
+  - name: Authentication
+    description: Endpoints de autenticação (login, logout, registro)
+  - name: Email Verification
+    description: Verificação de email via link com token UUID seguro
+  - name: Password Management
+    description: Gerenciamento de senhas (reset, change)
+  - name: Token Management
+    description: Gerenciamento de tokens (refresh, introspect, JWKS)
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login de usuário
+      description: |
+        Autentica usuário com email e senha.
+        
+        **Rate Limit**: 5 requisições/minuto por IP
+        
+        **Bloqueios**:
+        - 3 tentativas falhas: bloqueio de 5 minutos
+        - 5 tentativas falhas: bloqueio de 15 minutos
+        - 10 tentativas falhas: bloqueio de 1 hora
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: usuario@example.com
+                password:
+                  type: string
+                  format: password
+                  example: SenhaForte123!
+                remember:
+                  type: boolean
+                  default: false
+                  description: Se true, refresh token dura 30 dias. Se false, 7 dias.
+      responses:
+        '200':
+          description: Login realizado com sucesso
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+              description: Número máximo de requisições permitidas
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: Número de requisições restantes
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+              description: Timestamp Unix quando o limite será resetado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Credenciais inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Email não confirmado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Por favor, confirme seu e-mail antes de fazer login.
+        '429':
+          description: Rate limit excedido ou muitas tentativas de login
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Segundos até poder tentar novamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  code:
+                    type: string
+                    enum: [TOO_MANY_ATTEMPTS, RATE_LIMIT_EXCEEDED]
+                  retry_after_seconds:
+                    type: integer
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout de usuário
+      description: Invalida o refresh token da sessão atual
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  example: rt_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+      responses:
+        '200':
+          description: Logout realizado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logout realizado com sucesso.
+        '400':
+          description: Refresh token ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Token Management
+      summary: Renovar tokens
+      description: Gera novo access token usando refresh token válido
+      operationId: refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  example: rt_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+      responses:
+        '200':
+          description: Tokens renovados com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refresh_token:
+                    type: string
+                    example: rt_x9y8z7w6v5u4t3s2r1q0p9o8n7m6l5k4
+                  token_type:
+                    type: string
+                    example: Bearer
+                  expires_in:
+                    type: integer
+                    example: 3600
+        '401':
+          description: Refresh token inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Criar nova conta
+      description: |
+        Registra novo usuário e envia email de verificação.
+        
+        **Rate Limit**: 5 requisições/minuto por IP
+        
+        **Re-registro**: Se email já existe mas não foi confirmado, permite re-registro após 24h.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Conta criada com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Conta criada com sucesso. Verifique seu e-mail.
+                  user_id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email já cadastrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: E-mail já cadastrado e verificado.
+        '429':
+          description: Rate limit excedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+
+  /auth/confirm-verification:
+    post:
+      tags:
+        - Email Verification
+      summary: Confirmar email via token UUID
+      description: |
+        Confirma email usando token UUID enviado por email.
+        
+        **Idempotente**: Se email já confirmado, retorna sucesso sem gerar novos tokens.
+      operationId: confirmVerificationToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  format: uuid
+                  example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        '200':
+          description: Email confirmado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: E-mail confirmado com sucesso.
+        '401':
+          description: Token inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/request-reset:
+    post:
+      tags:
+        - Password Management
+      summary: Solicitar reset de senha
+      description: |
+        Envia email com link de reset de senha.
+        
+        **Rate Limit**: 3 requisições/5 minutos por IP
+        
+        **Segurança**: Sempre retorna sucesso para prevenir enumeração de emails.
+      operationId: requestPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: usuario@example.com
+      responses:
+        '200':
+          description: Email de reset enviado (ou email não existe)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Se o e-mail estiver cadastrado, você receberá instruções.
+        '429':
+          description: Rate limit excedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Password Management
+      summary: Resetar senha
+      description: |
+        Reseta senha usando token recebido por email.
+        
+        **Rate Limit**: 3 requisições/5 minutos por IP
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - new_password
+              properties:
+                token:
+                  type: string
+                  format: uuid
+                  example: 550e8400-e29b-41d4-a716-446655440000
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: NovaSenha123!
+                  description: |
+                    Requisitos:
+                    - Mínimo 8 caracteres
+                    - Pelo menos 1 letra maiúscula
+                    - Pelo menos 1 letra minúscula
+                    - Pelo menos 1 número
+      responses:
+        '200':
+          description: Senha resetada com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Senha redefinida com sucesso.
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit excedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+
+  /auth/change-password:
+    post:
+      tags:
+        - Password Management
+      summary: Alterar senha (autenticado)
+      description: |
+        Altera senha do usuário autenticado.
+        
+        **Autenticação**: Requer JWT válido
+        
+        **Rate Limit**: 3 requisições/5 minutos por IP
+      operationId: changePassword
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - current_password
+                - new_password
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                  example: SenhaAtual123!
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: NovaSenha456!
+      responses:
+        '200':
+          description: Senha alterada com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Senha alterada com sucesso.
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Não autenticado ou senha atual incorreta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '429':
+          description: Rate limit excedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+
+  /auth/introspect:
+    post:
+      tags:
+        - Token Management
+      summary: Validar token JWT
+      description: |
+        Verifica validade de um access token.
+        
+        Token pode ser fornecido:
+        - No header `Authorization: Bearer {token}`
+        - No body JSON `{ "token": "..." }`
+      operationId: introspect
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Token válido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: true
+                  payload:
+                    $ref: '#/components/schemas/JWTPayload'
+                  reason:
+                    type: string
+                    nullable: true
+                    example: null
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  reason:
+                    type: string
+                    enum:
+                      - expired
+                      - invalid_signature
+                      - revoked
+                      - invalid_issuer
+                      - invalid_audience
+                      - malformed
+
+  /auth/.well-known/jwks.json:
+    get:
+      tags:
+        - Token Management
+      summary: JWKS público
+      description: |
+        Retorna chaves públicas RSA no formato JWKS (JSON Web Key Set).
+        
+        Usado para validar tokens JWT assinados com RS256.
+      operationId: getJWKS
+      responses:
+        '200':
+          description: JWKS retornado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kty:
+                          type: string
+                          example: RSA
+                        use:
+                          type: string
+                          example: sig
+                        kid:
+                          type: string
+                          example: k1
+                        alg:
+                          type: string
+                          example: RS256
+                        n:
+                          type: string
+                          description: RSA modulus (base64url)
+                        e:
+                          type: string
+                          description: RSA exponent (base64url)
+                          example: AQAB
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token obtido via login, register ou refresh.
+        
+        Formato: `Authorization: Bearer {access_token}`
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - full_name
+        - phone
+      properties:
+        email:
+          type: string
+          format: email
+          example: usuario@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: SenhaForte123!
+          description: |
+            Requisitos:
+            - Mínimo 8 caracteres
+            - Pelo menos 1 letra maiúscula
+            - Pelo menos 1 letra minúscula
+            - Pelo menos 1 número
+            - Pelo menos 1 caractere especial
+        full_name:
+          type: string
+          minLength: 1
+          example: João Silva
+        phone:
+          type: string
+          minLength: 1
+          example: "+55 11 98765-4321"
+          description: Será normalizado automaticamente
+        birth_date:
+          type: string
+          format: date
+          example: "1990-01-15"
+          nullable: true
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+        refresh_token:
+          type: string
+          example: rt_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 3600
+          description: Tempo de vida do access token em segundos
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              example: 550e8400-e29b-41d4-a716-446655440000
+            email:
+              type: string
+              example: usuario@example.com
+            role:
+              type: string
+              example: user
+              enum: [user, admin, nutritionist]
+            display_name:
+              type: string
+              example: João Silva
+            full_name:
+              type: string
+              nullable: true
+              example: João da Silva Santos
+
+    JWTPayload:
+      type: object
+      properties:
+        sub:
+          type: string
+          description: User ID
+          example: 550e8400-e29b-41d4-a716-446655440000
+        email:
+          type: string
+          example: usuario@example.com
+        role:
+          type: string
+          example: user
+        full_name:
+          type: string
+          nullable: true
+          example: João Silva
+        phone:
+          type: string
+          nullable: true
+          example: "+5511987654321"
+        birth_date:
+          type: string
+          nullable: true
+          example: "1990-01-15"
+        iss:
+          type: string
+          description: Issuer (SITE_DNS)
+          example: auth.server.com
+        aud:
+          type: string
+          description: Audience (SITE_DNS)
+          example: auth.server.com
+        exp:
+          type: integer
+          description: Expiration timestamp (Unix)
+          example: 1730588400
+        jti:
+          type: string
+          description: JWT ID (para revogação)
+          example: 7f3b4c5d-6e8f-9a0b-1c2d-3e4f5a6b7c8d
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: O formato do e-mail informado é inválido.
+        field:
+          type: string
+          example: email
+          description: Campo que causou o erro (opcional)
+
+    AuthError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Token inválido. Faça login novamente.
+        code:
+          type: string
+          example: INVALID_TOKEN
+        reason:
+          type: string
+          example: expired
+          enum:
+            - expired
+            - invalid_signature
+            - revoked
+            - invalid_issuer
+            - invalid_audience
+            - malformed
+
+    RateLimitError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Muitas tentativas de login. Aguarde 1 minuto.
+        code:
+          type: string
+          example: RATE_LIMIT_EXCEEDED
+        retry_after_seconds:
+          type: integer
+          example: 42
+          description: Segundos até poder tentar novamente
