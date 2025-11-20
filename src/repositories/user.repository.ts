@@ -31,7 +31,7 @@ export class UserRepository {
   async findByEmail(email: string): Promise<DBUser | null> {
     const user = await this.env.DB.prepare(
       `SELECT u.id, u.email, u.email_confirmed, u.password_hash, u.role, u.session_version,
-              p.full_name, p.phone, p.birth_date, u.display_name, u.last_login_at
+              p.full_name, p.phone, p.birth_date, p.display_name, u.last_login_at
        FROM users u
        LEFT JOIN user_profiles p ON p.user_id = u.id
        WHERE u.email = ?`
@@ -48,7 +48,7 @@ export class UserRepository {
   async findById(userId: string): Promise<DBUser | null> {
     const user = await this.env.DB.prepare(
       `SELECT u.id, u.email, u.email_confirmed, u.password_hash, u.role, u.session_version,
-              p.full_name, p.phone, p.birth_date, u.display_name, u.last_login_at, u.created_at, u.updated_at
+              p.full_name, p.phone, p.birth_date, p.display_name, u.last_login_at, u.created_at, u.updated_at
        FROM users u
        LEFT JOIN user_profiles p ON p.user_id = u.id
        WHERE u.id = ?`
@@ -83,9 +83,17 @@ export class UserRepository {
     await this.env.DB.prepare(
       `UPDATE users 
        SET last_login_at = CURRENT_TIMESTAMP, 
-           display_name = COALESCE(display_name, ?),
            updated_at = CURRENT_TIMESTAMP 
        WHERE id = ?`
+    )
+      .bind(userId)
+      .run();
+    
+    await this.env.DB.prepare(
+      `UPDATE user_profiles 
+       SET display_name = COALESCE(display_name, ?),
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE user_id = ?`
     )
       .bind(displayName, userId)
       .run();
@@ -96,7 +104,7 @@ export class UserRepository {
    */
   async getDisplayName(userId: string): Promise<string | null> {
     const row = await this.env.DB.prepare(
-      `SELECT display_name FROM users WHERE id = ?`
+      `SELECT display_name FROM user_profiles WHERE user_id = ?`
     )
       .bind(userId)
       .first<{ display_name?: string }>();
@@ -153,7 +161,7 @@ export class UserRepository {
    */
   async listUsers(limit: number = 50, offset: number = 0): Promise<DBUser[]> {
     const users = await this.env.DB.prepare(
-      `SELECT u.id, u.email, u.email_confirmed, u.role, u.session_version, u.display_name,
+      `SELECT u.id, u.email, u.email_confirmed, u.role, u.session_version, p.display_name,
               u.last_login_at, u.created_at, u.updated_at,
               p.full_name, p.phone, p.birth_date
        FROM users u

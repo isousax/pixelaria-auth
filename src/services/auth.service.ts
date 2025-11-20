@@ -13,6 +13,13 @@ import {
 import { generateToken } from "../utils/generateToken";
 import { hashToken } from "../utils/hashToken";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
+import {
+  revokeAccessToken,
+  revokeAllUserTokens,
+  extractJtiFromToken,
+  extractExpFromToken,
+  extractUserIdFromToken,
+} from "../service/tokenRevocation";
 
 /**
  * Resultado do login
@@ -211,15 +218,46 @@ export class AuthService {
   }
 
   /**
-   * Realiza logout (invalida refresh token)
+   * Realiza logout (invalida refresh token e opcionalmente access token)
    */
-  async logout(refreshToken: string): Promise<{ success: boolean }> {
+  async logout(
+    refreshToken: string,
+    accessToken?: string
+  ): Promise<{ success: boolean }> {
     const session = await this.sessionRepo.findValidByRefreshToken(
       refreshToken
     );
 
     if (session) {
       await this.sessionRepo.deleteById(session.id);
+    }
+
+    // Revogar access token se fornecido
+    if (accessToken) {
+      try {
+        const jti = extractJtiFromToken(accessToken);
+        const userId = extractUserIdFromToken(accessToken);
+        const expiresAt = extractExpFromToken(accessToken);
+
+        if (jti && userId && expiresAt) {
+          await revokeAccessToken(
+            this.env.DB,
+            jti,
+            userId,
+            expiresAt,
+            "logout"
+          );
+          console.info(
+            `[AuthService.logout] Access token revogado: ${jti}`
+          );
+        }
+      } catch (error) {
+        console.error(
+          "[AuthService.logout] Erro ao revogar access token:",
+          error
+        );
+        // Não falhar o logout se revogação falhar
+      }
     }
 
     return { success: true };
@@ -231,6 +269,14 @@ export class AuthService {
   async forceLogoutAll(userId: string): Promise<{ success: boolean }> {
     await this.sessionRepo.deleteAllByUserId(userId);
     await this.userRepo.incrementSessionVersion(userId);
+    
+    // Registrar revogação de todos os tokens do usuário
+    await revokeAllUserTokens(
+      this.env.DB,
+      userId,
+      "force_logout_all"
+    );
+    
     return { success: true };
   }
 
@@ -281,11 +327,11 @@ export class AuthService {
       userId = existingUser.id;
       const displayName = fullName.trim().split(" ")[0];
 
-      // Atualizar senha e display_name
+      // Atualizar senha
       await this.env.DB.prepare(
-        "UPDATE users SET password_hash = ?, display_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
       )
-        .bind(passwordHash, displayName, userId)
+        .bind(passwordHash, userId)
         .run();
 
       // Atualizar perfil (delete + insert)
@@ -295,15 +341,15 @@ export class AuthService {
 
       if (birthDate) {
         await this.env.DB.prepare(
-          "INSERT INTO user_profiles (user_id, full_name, phone, birth_date) VALUES (?, ?, ?, ?)"
+          "INSERT INTO user_profiles (user_id, full_name, display_name, phone, birth_date) VALUES (?, ?, ?, ?, ?)"
         )
-          .bind(userId, fullName, phone, birthDate)
+          .bind(userId, fullName, displayName, phone, birthDate)
           .run();
       } else {
         await this.env.DB.prepare(
-          "INSERT INTO user_profiles (user_id, full_name, phone) VALUES (?, ?, ?)"
+          "INSERT INTO user_profiles (user_id, full_name, display_name, phone) VALUES (?, ?, ?, ?)"
         )
-          .bind(userId, fullName, phone)
+          .bind(userId, fullName, displayName, phone)
           .run();
       }
     } else {
@@ -325,23 +371,23 @@ export class AuthService {
 
       // Criar usuário
       await this.env.DB.prepare(
-        "INSERT INTO users (id, email, password_hash, role, display_name, email_confirmed) VALUES (?, ?, ?, ?, ?, 0)"
+        "INSERT INTO users (id, email, password_hash, role, email_confirmed) VALUES (?, ?, ?, ?, 0)"
       )
-        .bind(userId, email, passwordHash, initialRole, displayName)
+        .bind(userId, email, passwordHash, initialRole)
         .run();
 
       // Criar perfil
       if (birthDate) {
         await this.env.DB.prepare(
-          "INSERT INTO user_profiles (user_id, full_name, phone, birth_date) VALUES (?, ?, ?, ?)"
+          "INSERT INTO user_profiles (user_id, full_name, display_name, phone, birth_date) VALUES (?, ?, ?, ?, ?)"
         )
-          .bind(userId, fullName, phone, birthDate)
+          .bind(userId, fullName, displayName, phone, birthDate)
           .run();
       } else {
         await this.env.DB.prepare(
-          "INSERT INTO user_profiles (user_id, full_name, phone) VALUES (?, ?, ?)"
+          "INSERT INTO user_profiles (user_id, full_name, display_name, phone) VALUES (?, ?, ?, ?)"
         )
-          .bind(userId, fullName, phone)
+          .bind(userId, fullName, displayName, phone)
           .run();
       }
     }
@@ -568,6 +614,13 @@ export class AuthService {
     const passwordHash = await hashPassword(newPassword);
     await this.userRepo.updatePassword(tokenRow.user_id, passwordHash);
 
+    // Registrar troca de senha no log
+    await this.env.DB.prepare(
+      "INSERT INTO password_change_log (user_id, changed_at) VALUES (?, CURRENT_TIMESTAMP)"
+    )
+      .bind(tokenRow.user_id)
+      .run();
+
     // Invalidar token
     await this.env.DB.prepare(
       `DELETE FROM password_reset_tokens WHERE token = ?`
@@ -575,13 +628,13 @@ export class AuthService {
       .bind(hashedToken)
       .run();
 
-    // Invalidar todas as sessões
+    // Invalidar todas as sessões e revogar tokens
     await this.forceLogoutAll(tokenRow.user_id);
 
     return {
       success: true,
       data: {
-        message: "Senha alterada com sucesso.",
+        message: "Senha alterada com sucesso. Faça login novamente.",
       },
     };
   }
@@ -626,13 +679,20 @@ export class AuthService {
     const passwordHash = await hashPassword(newPassword);
     await this.userRepo.updatePassword(userId, passwordHash);
 
-    // Invalidar todas as sessões
+    // Registrar troca de senha no log
+    await this.env.DB.prepare(
+      "INSERT INTO password_change_log (user_id, changed_at) VALUES (?, CURRENT_TIMESTAMP)"
+    )
+      .bind(userId)
+      .run();
+
+    // Invalidar todas as sessões e revogar tokens
     await this.forceLogoutAll(userId);
 
     return {
       success: true,
       data: {
-        message: "Senha alterada com sucesso.",
+        message: "Senha alterada com sucesso. Faça login novamente.",
       },
     };
   }

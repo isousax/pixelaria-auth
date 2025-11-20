@@ -431,12 +431,23 @@ openssl rsa -in private.pem -pubout -out public.pem
 
 ### Revogação de Access Tokens
 
-- Tabela `revoked_jti` controla JWTs invalidados antes da expiração natural
-- Fluxos que adicionam revogação:
-  - Logout
-  - Troca de senha
-  - Invalidação manual por admin
-- Verificação centralizada em `service/tokenVerify.ts` rejeita tokens com `jti` revogado
+A tabela `revoked_jti` controla JWTs invalidados antes da expiração natural.
+
+**Implementação:**
+- ✅ **Logout**: Revoga o access token atual quando fornecido no body (`access_token` opcional)
+- ✅ **Troca de senha**: Invalida todos os tokens do usuário via `session_version` + registro em `revoked_jti`
+- ✅ **Force logout**: Revoga todas as sessões e tokens de um usuário
+- ✅ **Verificação**: `service/tokenVerify.ts` rejeita automaticamente tokens com `jti` revogado
+- ✅ **Limpeza automática**: Cron job diário remove JTIs expirados (às 3h UTC)
+
+**Como usar no logout:**
+```json
+POST /auth/logout
+{
+  "refresh_token": "...",
+  "access_token": "..." // opcional - será revogado se fornecido
+}
+```
 
 ### Segurança Complementar
 
@@ -445,6 +456,31 @@ openssl rsa -in private.pem -pubout -out public.pem
 - ✅ Sessões de refresh rotacionadas
 - ✅ Proteção contra timing attacks
 - ✅ Rate limiting por IP/email
+
+---
+
+## ⏰ Jobs Agendados (Cron Triggers)
+
+O sistema executa jobs de limpeza automaticamente via Cloudflare Workers Cron Triggers:
+
+### Configuração no `wrangler.jsonc`
+```jsonc
+"triggers": {
+  "crons": ["0 3 * * *"]  // Diariamente às 3h UTC
+}
+```
+
+### Jobs Implementados
+
+1. **Limpeza de Sessões Expiradas** (`cleanup-sessions.job.ts`)
+   - Remove refresh tokens expirados da tabela `user_sessions`
+   - Mantém o banco otimizado
+
+2. **Limpeza de JTIs Revogados** (`cleanup-revoked-jti.job.ts`)
+   - Remove JTIs expirados da tabela `revoked_jti`
+   - Previne crescimento infinito da blacklist de tokens
+
+Ambos os jobs são executados em paralelo no handler `scheduled` em `src/index.ts`.
 
 ---
 

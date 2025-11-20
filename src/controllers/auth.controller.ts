@@ -7,9 +7,11 @@ import {
   resetPasswordSchema,
   changePasswordSchema,
   refreshTokenSchema,
+  logoutSchema,
   confirmVerificationTokenSchema,
   type LoginInput,
   type RefreshTokenInput,
+  type LogoutInput,
 } from "../validators/auth.validators";
 import { normalizePhone, phoneErrorMessage } from "../utils/normalizePhone";
 import { verifyAccessToken } from "../service/tokenVerify";
@@ -126,7 +128,7 @@ export class AuthController {
       );
     }
 
-    const validation = refreshTokenSchema.safeParse(body);
+    const validation = logoutSchema.safeParse(body);
     if (!validation.success) {
       const firstError = validation.error.errors[0];
       return jsonResponse(
@@ -135,9 +137,9 @@ export class AuthController {
       );
     }
 
-    const { refresh_token } = validation.data;
+    const { refresh_token, access_token } = validation.data;
 
-    await this.authService.logout(refresh_token);
+    await this.authService.logout(refresh_token, access_token);
 
     return jsonResponse({ message: "Logout realizado com sucesso." }, 200);
   }

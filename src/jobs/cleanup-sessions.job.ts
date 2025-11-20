@@ -40,3 +40,11 @@ export async function scheduledCleanupHandler(
   const job = new CleanupExpiredSessionsJob(env);
   await job.execute();
 }
+
+/**
+ * Wrapper simplificado para usar no index.ts
+ */
+export async function cleanupExpiredSessionsJob(env: Env): Promise<void> {
+  const job = new CleanupExpiredSessionsJob(env);
+  await job.execute();
+}

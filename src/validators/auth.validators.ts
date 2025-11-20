@@ -70,6 +70,14 @@ export const refreshTokenSchema = z.object({
 });
 
 /**
+ * Schema para logout (refresh token + access token opcional)
+ */
+export const logoutSchema = z.object({
+  refresh_token: z.string().min(1, { message: "Refresh token é obrigatório." }),
+  access_token: z.string().optional(),
+});
+
+/**
  * Schema para confirmação de token de verificação
  */
 export const confirmVerificationTokenSchema = z.object({
@@ -83,4 +91,5 @@ export type RequestPasswordResetInput = z.infer<typeof requestPasswordResetSchem
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
+export type LogoutInput = z.infer<typeof logoutSchema>;
 export type ConfirmVerificationTokenInput = z.infer<typeof confirmVerificationTokenSchema>;
