@@ -48,7 +48,7 @@ export class SessionRepository {
     const session = await this.env.DB.prepare(
       `SELECT id, user_id, refresh_token, expires_at, created_at
        FROM user_sessions
-       WHERE refresh_token = ? AND datetime(expires_at) > datetime('now')`
+       WHERE refresh_token = ? AND datetime(expires_at) > datetime('now') AND revoked = 0`
     )
       .bind(refreshToken)
       .first<DBSession>();
@@ -57,7 +57,18 @@ export class SessionRepository {
   }
 
   /**
-   * Remove sessão pelo ID
+   * Revoga sessão pelo ID (marca como revoked)
+   */
+  async revokeById(sessionId: string): Promise<void> {
+    await this.env.DB.prepare(
+      `UPDATE user_sessions SET revoked = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    )
+      .bind(sessionId)
+      .run();
+  }
+
+  /**
+   * Remove sessão pelo ID (delete físico)
    */
   async deleteById(sessionId: string): Promise<void> {
     await this.env.DB.prepare(`DELETE FROM user_sessions WHERE id = ?`)
@@ -66,7 +77,18 @@ export class SessionRepository {
   }
 
   /**
-   * Remove todas as sessões de um usuário
+   * Revoga todas as sessões de um usuário (marca como revoked)
+   */
+  async revokeAllByUserId(userId: string): Promise<void> {
+    await this.env.DB.prepare(
+      `UPDATE user_sessions SET revoked = 1, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`
+    )
+      .bind(userId)
+      .run();
+  }
+
+  /**
+   * Remove todas as sessões de um usuário (delete físico)
    */
   async deleteAllByUserId(userId: string): Promise<void> {
     await this.env.DB.prepare(`DELETE FROM user_sessions WHERE user_id = ?`)
@@ -75,11 +97,12 @@ export class SessionRepository {
   }
 
   /**
-   * Remove sessões expiradas (cleanup job)
+   * Remove sessões expiradas e revogadas (cleanup job)
    */
   async deleteExpired(): Promise<void> {
     await this.env.DB.prepare(
-      `DELETE FROM user_sessions WHERE datetime(expires_at) <= datetime('now')`
+      `DELETE FROM user_sessions 
+       WHERE datetime(expires_at) <= datetime('now') OR revoked = 1`
     ).run();
   }
 
@@ -90,7 +113,7 @@ export class SessionRepository {
     const sessions = await this.env.DB.prepare(
       `SELECT id, user_id, refresh_token, expires_at, created_at
        FROM user_sessions
-       WHERE user_id = ? AND datetime(expires_at) > datetime('now')
+       WHERE user_id = ? AND datetime(expires_at) > datetime('now') AND revoked = 0
        ORDER BY created_at DESC`
     )
       .bind(userId)

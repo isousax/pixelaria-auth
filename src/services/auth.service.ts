@@ -234,7 +234,7 @@ export class AuthService {
     );
 
     if (session) {
-      await this.sessionRepo.deleteById(session.id);
+      await this.sessionRepo.revokeById(session.id);
     }
 
     // Revogar access token se fornecido
@@ -272,7 +272,7 @@ export class AuthService {
    * Força logout de todas as sessões de um usuário
    */
   async forceLogoutAll(userId: string): Promise<{ success: boolean }> {
-    await this.sessionRepo.deleteAllByUserId(userId);
+    await this.sessionRepo.revokeAllByUserId(userId);
     await this.userRepo.incrementSessionVersion(userId);
     
     // Registrar revogação de todos os tokens do usuário
