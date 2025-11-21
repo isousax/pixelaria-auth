@@ -150,6 +150,40 @@ curl -X POST http://localhost:8787/auth/refresh \
   -d '{
     "refresh_token": "rt_..."
   }'
+
+# 5. Validar token (Introspect)
+# Opção 1: Via body
+curl -X POST http://localhost:8787/auth/introspect \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "eyJhbGciOiJSUzI1NiIs..."
+  }'
+
+# Opção 2: Via header Authorization
+curl -X POST http://localhost:8787/auth/introspect \
+  -H "Authorization: Bearer eyJhbGciOiJSUzI1NiIs..."
+
+# Resposta (sucesso):
+{
+  "valid": true,
+  "payload": {
+    "userId": "857c08be-5037-4ddd-ab6e-fe422c63006d",
+    "email": "user@example.com",
+    "role": "user",
+    "sessionVersion": 0,
+    "displayName": "João",
+    "exp": 1763742942,
+    "jti": "ea7508c2-d56d-4fe1-ad7c-6c3278958314",
+    "iss": "https://pixelaria.com.br",
+    "aud": "https://pixelaria.com.br"
+  }
+}
+
+# Resposta (inválido):
+{
+  "valid": false,
+  "reason": "expired"  // ou "revoked", "invalid_signature_or_exp", etc
+}
 ```
 
 ## 🏗️ Arquitetura

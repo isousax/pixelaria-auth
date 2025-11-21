@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import type { Env } from "../../types/Env";
 import { AuthController } from "../../controllers/auth.controller";
 import { jwksHandler } from "../../utils/jwks";
 import { requireAuth, getAuthUser, type AppContext } from "../../middleware/auth";

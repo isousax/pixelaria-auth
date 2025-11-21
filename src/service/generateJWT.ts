@@ -7,11 +7,17 @@ export async function generateJWT(
   payload: Record<string, unknown>,
   legacySecret: string,
   expiresInSec = 3600,
-  opts?: { privateKeyPem?: string; kid?: string }
+  opts?: { privateKeyPem?: string; kid?: string; issuer?: string; audience?: string }
 ) {
   const exp = Math.floor(Date.now() / 1000) + expiresInSec;
   const jti = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const fullPayload = { ...payload, exp, jti };
+  const fullPayload = { 
+    ...payload, 
+    exp, 
+    jti,
+    ...(opts?.issuer ? { iss: opts.issuer } : {}),
+    ...(opts?.audience ? { aud: opts.audience } : {}),
+  };
   const encoder = new TextEncoder();
 
   if (opts?.privateKeyPem) {

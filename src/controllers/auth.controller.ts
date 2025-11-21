@@ -9,9 +9,6 @@ import {
   refreshTokenSchema,
   logoutSchema,
   confirmVerificationTokenSchema,
-  type LoginInput,
-  type RefreshTokenInput,
-  type LogoutInput,
 } from "../validators/auth.validators";
 import { normalizePhone, phoneErrorMessage } from "../utils/normalizePhone";
 import { verifyAccessToken } from "../service/tokenVerify";

@@ -180,6 +180,8 @@ export class AuthService {
       {
         privateKeyPem: this.env.JWT_PRIVATE_KEY_PEM,
         kid: this.env.JWT_JWKS_KID || 'k1',
+        issuer: this.env.SITE_DNS,
+        audience: this.env.SITE_DNS,
       }
     );
 
@@ -528,6 +530,8 @@ export class AuthService {
       {
         privateKeyPem: this.env.JWT_PRIVATE_KEY_PEM,
         kid: this.env.JWT_JWKS_KID || 'k1',
+        issuer: this.env.SITE_DNS,
+        audience: this.env.SITE_DNS,
       }
     );
 
