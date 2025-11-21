@@ -18,7 +18,7 @@ export async function sendVerificationEmail(
 
   if (!from || typeof from !== "string") {
     throw new Error(
-      'EMAIL_FROM não configurado (ex: "Avante Nutri <no-reply@avantenutri.com>").'
+      'EMAIL_FROM não configurado (ex: "Pixelaria <no-reply@pixelaria.com.br>").'
     );
   }
 
@@ -28,7 +28,7 @@ export async function sendVerificationEmail(
 
   console.info("[sendVerificationEmail] preparando e-mail para envio");
 
-  const subject = "Confirme seu e-mail - Avante Nutri";
+  const subject = "Confirme seu e-mail - Pixelaria";
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -291,5 +291,5 @@ function parseSender(from: string) {
   const m = from.match(/^(.*)<(.+@.+)>$/);
   if (m)
     return { name: m[1].trim().replace(/(^"|"$)/g, ""), email: m[2].trim() };
-  return { name: "Avante Nutri", email: from.trim() };
+  return { name: "Pixelaria", email: from.trim() };
 }

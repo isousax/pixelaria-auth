@@ -14,7 +14,7 @@ export async function sendPasswordResetEmail(
     return;
   }
 
-  const subject = "Redefinição de Senha - Avante Nutri";
+  const subject = "Redefinição de Senha - Pixelaria";
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -295,5 +295,5 @@ function parseSender(from: string) {
   const m = from.match(/^(.*)<(.+@.+)>$/);
   if (m)
     return { name: m[1].trim().replace(/(^"|"$)/g, ""), email: m[2].trim() };
-  return { name: "Avante Nutri", email: from.trim() };
+  return { name: "Pixelaria", email: from.trim() };
 }
