@@ -4,7 +4,7 @@ Sistema de autenticação completo rodando em Cloudflare Workers com [Hono](http
 
 ## ✨ Características
 
-- 🔐 Autenticação JWT (RS256/HS256) com refresh tokens
+- 🔐 Autenticação JWT (RS256/HS256) com refresh tokens rotativos
 - 📧 Verificação de email e reset de senha
 - 🛡️ Rate limiting e proteção contra brute force
 - 🗄️ Cloudflare D1 (SQLite) para persistência
@@ -102,7 +102,7 @@ src/
 | `/auth/register` | POST | Registrar novo usuário | 5/min |
 | `/auth/login` | POST | Login com email/senha | 5/min |
 | `/auth/logout` | POST | Logout (invalidar refresh token) | - |
-| `/auth/refresh` | POST | Renovar access token | - |
+| `/auth/refresh` | POST | Renovar access token + rotacionar refresh token | - |
 | `/auth/request-reset` | POST | Solicitar reset de senha | 3/5min |
 | `/auth/reset-password` | POST | Reset de senha com token | 3/5min |
 | `/auth/change-password` | POST | Alterar senha (autenticado) | 3/5min |
@@ -454,11 +454,38 @@ POST /auth/logout
 }
 ```
 
+### Rotação de Refresh Tokens
+
+O sistema implementa **rotação automática de refresh tokens** para máxima segurança:
+
+**Como funciona:**
+1. Cliente faz `POST /auth/refresh` com refresh token atual
+2. Backend valida e gera novo access token + novo refresh token
+3. Token antigo é **invalidado automaticamente**
+4. Cliente recebe ambos os tokens e atualiza seu storage
+
+**Resposta do `/auth/refresh`:**
+```json
+{
+  "access_token": "novo_access_token",
+  "refresh_token": "novo_refresh_token",  // ✅ Novo token rotacionado
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "user": { ... }
+}
+```
+
+**Vantagens:**
+- 🔒 Detecta roubo de tokens (token antigo não funciona mais)
+- 🛡️ Reduz janela de oportunidade para ataques
+- ✅ Conformidade com OAuth 2.0 Security Best Practices
+- 🔄 Proteção contra race conditions com trava otimista
+
 ### Segurança Complementar
 
 - ✅ Soft lock + backoff progressivo em tentativas inválidas
 - ✅ Jitter para mitigar análise de tempo
-- ✅ Sessões de refresh rotacionadas
+- ✅ Sessões de refresh rotacionadas automaticamente
 - ✅ Proteção contra timing attacks
 - ✅ Rate limiting por IP/email
 

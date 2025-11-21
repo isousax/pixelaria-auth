@@ -531,14 +531,42 @@ export class AuthService {
       }
     );
 
-    // Rotacionar refresh token (opcional - comentado para manter compatibilidade)
-    // const newRefreshToken = await rotateSession(this.env.DB, session.id, refreshToken);
+    // Rotacionar refresh token para maior segurança
+    const newRefreshToken = await generateRefreshToken();
+    const refreshDays = this.env.REFRESH_TOKEN_EXPIRATION_DAYS
+      ? Number(this.env.REFRESH_TOKEN_EXPIRATION_DAYS)
+      : 30;
+    const newExpiresAt = new Date(
+      Date.now() + refreshDays * 24 * 60 * 60 * 1000
+    ).toISOString();
+
+    try {
+      await rotateSession(
+        this.env.DB,
+        session.id,
+        refreshToken,
+        newRefreshToken,
+        newExpiresAt
+      );
+    } catch (error) {
+      // Se houver conflito otimista, outro refresh já rotacionou
+      if ((error as any).code === "SESSION_CONFLICT") {
+        return {
+          success: false,
+          error: {
+            message: "Sessão foi atualizada por outra requisição. Tente novamente.",
+            code: "SESSION_CONFLICT",
+          },
+        };
+      }
+      throw error;
+    }
 
     return {
       success: true,
       data: {
         access_token: accessToken,
-        // refresh_token: newRefreshToken, // Se implementar rotação
+        refresh_token: newRefreshToken,
         token_type: "Bearer",
         expires_in: expiresIn,
         user: {
