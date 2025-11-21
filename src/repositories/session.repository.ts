@@ -7,8 +7,6 @@ export interface DBSession {
   id: string;
   user_id: string;
   refresh_token: string;
-  ip_address?: string;
-  user_agent?: string;
   expires_at: string;
   created_at: string;
 }
@@ -26,20 +24,16 @@ export class SessionRepository {
     id: string;
     user_id: string;
     refresh_token: string;
-    ip_address?: string;
-    user_agent?: string;
     expires_at: string;
   }): Promise<void> {
     await this.env.DB.prepare(
-      `INSERT INTO user_sessions (id, user_id, refresh_token, ip_address, user_agent, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO user_sessions (id, user_id, refresh_token, expires_at)
+       VALUES (?, ?, ?, ?)`
     )
       .bind(
         data.id,
         data.user_id,
         data.refresh_token,
-        data.ip_address || null,
-        data.user_agent || null,
         data.expires_at
       )
       .run();
@@ -52,7 +46,7 @@ export class SessionRepository {
     refreshToken: string
   ): Promise<DBSession | null> {
     const session = await this.env.DB.prepare(
-      `SELECT id, user_id, refresh_token, ip_address, user_agent, expires_at, created_at
+      `SELECT id, user_id, refresh_token, expires_at, created_at
        FROM user_sessions
        WHERE refresh_token = ? AND datetime(expires_at) > datetime('now')`
     )
@@ -94,7 +88,7 @@ export class SessionRepository {
    */
   async listActiveByUserId(userId: string): Promise<DBSession[]> {
     const sessions = await this.env.DB.prepare(
-      `SELECT id, user_id, refresh_token, ip_address, user_agent, expires_at, created_at
+      `SELECT id, user_id, refresh_token, expires_at, created_at
        FROM user_sessions
        WHERE user_id = ? AND datetime(expires_at) > datetime('now')
        ORDER BY created_at DESC`
