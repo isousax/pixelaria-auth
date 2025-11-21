@@ -76,9 +76,9 @@ export class AuthController {
 
     const { email, password, remember } = validation.data;
 
-    // Verificar configuração
-    if (!this.env.JWT_SECRET) {
-      console.error("[AuthController.login] JWT_SECRET ausente no ambiente");
+    // Verificar configuração: precisa de JWT_SECRET OU JWT_PRIVATE_KEY_PEM
+    if (!this.env.JWT_SECRET && !this.env.JWT_PRIVATE_KEY_PEM) {
+      console.error("[AuthController.login] JWT_SECRET ou JWT_PRIVATE_KEY_PEM ausente no ambiente");
       return jsonResponse(
         {
           error:

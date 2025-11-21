@@ -12,8 +12,8 @@ export interface Env {
   SITE_DNS: string;
   DB: D1Database;
   WORKER_API_KEY: string;
-  // Legacy HMAC secret (mantido para rollback rápido). Novo fluxo usará RSA se chaves presentes.
-  JWT_SECRET: string;
+  // Legacy HMAC secret (opcional se JWT_PRIVATE_KEY_PEM estiver configurado)
+  JWT_SECRET?: string;
   JWT_EXPIRATION_SEC: number;
   REFRESH_TOKEN_EXPIRATION_DAYS: number;
 

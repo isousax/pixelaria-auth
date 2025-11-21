@@ -12,12 +12,12 @@ export class AppConfig {
   readonly environment: "development" | "production" | "test";
 
   constructor(env: Env) {
-    // Validações críticas
-    if (!env.JWT_SECRET) {
-      throw new Error("JWT_SECRET não configurado");
+    // Validações críticas: precisa de JWT_SECRET OU JWT_PRIVATE_KEY_PEM
+    if (!env.JWT_SECRET && !env.JWT_PRIVATE_KEY_PEM) {
+      throw new Error("JWT_SECRET ou JWT_PRIVATE_KEY_PEM deve estar configurado");
     }
 
-    this.jwtSecret = env.JWT_SECRET;
+    this.jwtSecret = env.JWT_SECRET || '';
     this.jwtExpirationSec = env.JWT_EXPIRATION_SEC
       ? Number(env.JWT_EXPIRATION_SEC)
       : 3600; // 1 hora default

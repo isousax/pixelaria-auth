@@ -175,8 +175,12 @@ export class AuthService {
         sessionVersion: user.session_version,
         displayName: displayName,
       },
-      this.env.JWT_SECRET,
-      expiresIn
+      this.env.JWT_SECRET || '',
+      expiresIn,
+      {
+        privateKeyPem: this.env.JWT_PRIVATE_KEY_PEM,
+        kid: this.env.JWT_JWKS_KID || 'k1',
+      }
     );
 
     // Gerar refresh token se remember = true
@@ -519,8 +523,12 @@ export class AuthService {
         sessionVersion: user.session_version,
         displayName: user.display_name || user.email.split("@")[0],
       },
-      this.env.JWT_SECRET,
-      expiresIn
+      this.env.JWT_SECRET || '',
+      expiresIn,
+      {
+        privateKeyPem: this.env.JWT_PRIVATE_KEY_PEM,
+        kid: this.env.JWT_JWKS_KID || 'k1',
+      }
     );
 
     // Rotacionar refresh token (opcional - comentado para manter compatibilidade)

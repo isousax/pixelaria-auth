@@ -357,14 +357,19 @@ curl https://seu-worker.workers.dev/health
 
 O serviço suporta emissão de tokens JWT via RS256 (preferido) com fallback para HS256 se chaves RSA não estiverem configuradas.
 
+**Configuração:**
+- **RS256 (recomendado)**: Configure `JWT_PRIVATE_KEY_PEM` e `JWT_PUBLIC_KEY_PEM`
+- **HS256 (legacy)**: Configure apenas `JWT_SECRET`
+- Pelo menos uma das opções deve estar configurada
+
 ### Variáveis de Ambiente
 
 | Variável | Descrição | Exemplo |
 |----------|-----------|---------|
 | `SITE_DNS` | Usado como `iss` e `aud` nos tokens | `https://api.exemplo.com` |
 | `FRONTEND_URL` | URL do frontend para CORS | `https://app.exemplo.com` |
-| `JWT_SECRET` | Segredo legado HS256 (fallback) | `seu-secret-super-secreto` |
-| `JWT_PRIVATE_KEY_PEM` | Chave privada PKCS8 para RS256 | `-----BEGIN PRIVATE KEY-----...` |
+| `JWT_SECRET` | Segredo legado HS256 (opcional se usar RSA) | `seu-secret-super-secreto` |
+| `JWT_PRIVATE_KEY_PEM` | Chave privada PKCS8 para RS256 **(recomendado)** | `-----BEGIN PRIVATE KEY-----...` |
 | `JWT_PUBLIC_KEY_PEM` | Chave pública SPKI correspondente | `-----BEGIN PUBLIC KEY-----...` |
 | `JWT_JWKS_KID` | Identificador (kid) exposto no JWKS | `k1` |
 | `JWT_EXPIRATION_SEC` | Expiração do access token (segundos) | `3600` |
