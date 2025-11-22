@@ -716,8 +716,15 @@ export class AuthService {
     const hashedToken = await hashToken(plainToken);
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 min
 
+    // Upsert: substitui token anterior se existir
     await this.env.DB.prepare(
-      `INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)`
+      `INSERT INTO password_reset_tokens (user_id, token, expires_at, used)
+       VALUES (?, ?, ?, 0)
+       ON CONFLICT(user_id) DO UPDATE SET
+         token = excluded.token,
+         expires_at = excluded.expires_at,
+         created_at = CURRENT_TIMESTAMP,
+         used = 0`
     )
       .bind(user.id, hashedToken, expiresAt)
       .run();
