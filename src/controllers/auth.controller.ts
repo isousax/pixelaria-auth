@@ -371,6 +371,57 @@ export class AuthController {
   }
 
   /**
+   * POST /auth/resend-verification
+   */
+  async resendVerification(request: Request): Promise<Response> {
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (err) {
+      return jsonResponse(
+        { error: "O corpo da requisição não está em formato JSON válido." },
+        400
+      );
+    }
+
+    const validation = requestPasswordResetSchema.safeParse(body);
+    if (!validation.success) {
+      return jsonResponse({ error: "E-mail inválido." }, 400);
+    }
+
+    const { email } = validation.data;
+
+    const result = await this.authService.resendVerificationEmail(email, request);
+
+    if (!result.success) {
+      // Se for rate limit, adicionar header Retry-After
+      if (result.error?.code === "RATE_LIMITED" && result.error.retryAfterSec) {
+        return new Response(
+          JSON.stringify({ error: result.error.message }),
+          {
+            status: 429,
+            headers: {
+              "Content-Type": "application/json",
+              "Retry-After": result.error.retryAfterSec.toString(),
+            },
+          }
+        );
+      }
+
+      const statusCode = result.error?.code === "EMAIL_ALREADY_CONFIRMED" ? 400 : 500;
+      return jsonResponse({ error: result.error?.message }, statusCode);
+    }
+
+    return jsonResponse(
+      {
+        ok: true,
+        message: result.data?.message,
+      },
+      200
+    );
+  }
+
+  /**
    * POST /auth/introspect
    * Valida um access token JWT e retorna suas claims
    */

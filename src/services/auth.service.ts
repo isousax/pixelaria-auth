@@ -404,12 +404,13 @@ export class AuthService {
 
     // Upsert token de verificação
     await this.env.DB.prepare(
-      `INSERT INTO email_verification_codes (user_id, token_hash, expires_at, used)
-       VALUES (?, ?, ?, 0)
+      `INSERT INTO email_verification_codes (user_id, token_hash, expires_at, used, last_sent_at)
+       VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
        ON CONFLICT(user_id) DO UPDATE SET
          token_hash = excluded.token_hash,
          expires_at = excluded.expires_at,
          created_at = CURRENT_TIMESTAMP,
+         last_sent_at = CURRENT_TIMESTAMP,
          used = 0`
     )
       .bind(userId, hashedToken, expiresAt)
@@ -458,6 +459,116 @@ export class AuthService {
       success: true,
       data: { userId },
     };
+  }
+
+  /**
+   * Reenvia e-mail de verificação para usuário com e-mail não confirmado
+   */
+  async resendVerificationEmail(
+    email: string,
+    request?: Request
+  ): Promise<ServiceResult<{ message: string }>> {
+    console.info("[AuthService.resendVerificationEmail] Iniciando reenvio para:", email);
+
+    // Buscar usuário
+    const user = await this.userRepo.findByEmail(email);
+
+    if (!user) {
+      console.warn("[AuthService.resendVerificationEmail] Usuário não encontrado:", email);
+      return {
+        success: false,
+        error: {
+          message: "E-mail não encontrado em nossa base de dados.",
+          code: "USER_NOT_FOUND",
+        },
+      };
+    }
+
+    // Verificar se já confirmado
+    if (user.email_confirmed === 1) {
+      console.warn("[AuthService.resendVerificationEmail] E-mail já confirmado:", email);
+      return {
+        success: false,
+        error: {
+          message: "Este e-mail já está confirmado.",
+          code: "EMAIL_ALREADY_CONFIRMED",
+        },
+      };
+    }
+
+    // Verificar cooldown (60 segundos entre envios)
+    const COOLDOWN_SECONDS = 60;
+    const existingCode = await this.env.DB.prepare(
+      "SELECT last_sent_at FROM email_verification_codes WHERE user_id = ?"
+    )
+      .bind(user.id)
+      .first<{ last_sent_at: string }>();
+
+    if (existingCode?.last_sent_at) {
+      const lastSentAt = new Date(existingCode.last_sent_at).getTime();
+      const now = Date.now();
+      const elapsedSeconds = Math.floor((now - lastSentAt) / 1000);
+      const remainingSeconds = COOLDOWN_SECONDS - elapsedSeconds;
+
+      if (remainingSeconds > 0) {
+        console.warn(
+          `[AuthService.resendVerificationEmail] Cooldown ativo para ${email}: ${remainingSeconds}s restantes`
+        );
+        return {
+          success: false,
+          error: {
+            message: `Aguarde ${remainingSeconds} segundos antes de solicitar um novo e-mail.`,
+            code: "RATE_LIMITED",
+            retryAfterSec: remainingSeconds,
+          },
+        };
+      }
+    }
+
+    // Gerar novo token de verificação
+    const plainToken = await generateToken();
+    const hashedToken = await hashToken(plainToken);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min
+
+    // Atualizar token de verificação e registrar envio
+    await this.env.DB.prepare(
+      `INSERT INTO email_verification_codes (user_id, token_hash, expires_at, used, last_sent_at)
+       VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
+       ON CONFLICT(user_id) DO UPDATE SET
+         token_hash = excluded.token_hash,
+         expires_at = excluded.expires_at,
+         created_at = CURRENT_TIMESTAMP,
+         last_sent_at = CURRENT_TIMESTAMP,
+         used = 0`
+    )
+      .bind(user.id, hashedToken, expiresAt)
+      .run();
+
+    // Montar link de verificação e enviar email
+    const base = this.env.SITE_DNS || "http://localhost:8787";
+    const link = `${base}/confirm-email?token=${encodeURIComponent(plainToken)}`;
+
+    try {
+      await sendVerificationEmail(this.env.BREVO_API_KEY, email, link);
+      console.info("[AuthService.resendVerificationEmail] E-mail reenviado com sucesso para:", email);
+
+      return {
+        success: true,
+        data: {
+          message: "E-mail de verificação reenviado com sucesso. Verifique sua caixa de entrada.",
+        },
+      };
+    } catch (error) {
+      console.error("[AuthService.resendVerificationEmail] Erro ao enviar e-mail:", error);
+
+      return {
+        success: false,
+        error: {
+          message: "Não foi possível enviar o e-mail de verificação. Por favor, tente novamente mais tarde.",
+          code: "EMAIL_SEND_FAILED",
+        },
+      };
+    }
   }
 
   /**

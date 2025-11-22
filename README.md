@@ -50,8 +50,13 @@ wrangler d1 create auth-engine-db
 
 4. Execute as migrações:
 ```bash
+# Schema inicial
 wrangler d1 execute auth-engine-db --local --file=./schema.sql
 wrangler d1 execute auth-engine-db --remote --file=./schema.sql
+
+# Migrações incrementais (se aplicável)
+wrangler d1 execute auth-engine-db --local --file=./migrations/001_add_last_sent_at.sql
+wrangler d1 execute auth-engine-db --remote --file=./migrations/001_add_last_sent_at.sql
 ```
 
 5. Inicie o servidor de desenvolvimento:
@@ -107,6 +112,7 @@ src/
 | `/auth/reset-password` | POST | Reset de senha com token | 3/5min |
 | `/auth/change-password` | POST | Alterar senha (autenticado) | 3/5min |
 | `/auth/confirm-verification` | POST | Confirmar email via link (token UUID) | - |
+| `/auth/resend-verification` | POST | Reenviar email de verificação | 5/min + 60s cooldown |
 | `/auth/introspect` | POST | Validar token JWT | - |
 | `/auth/.well-known/jwks.json` | GET | JWKS para validação de tokens | - |
 
@@ -151,7 +157,26 @@ curl -X POST http://localhost:8787/auth/refresh \
     "refresh_token": "rt_..."
   }'
 
-# 5. Validar token (Introspect)
+# 5. Reenviar e-mail de verificação (se expirou)
+curl -X POST http://localhost:8787/auth/resend-verification \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+
+# Resposta (sucesso):
+{
+  "ok": true,
+  "message": "E-mail de verificação reenviado com sucesso. Verifique sua caixa de entrada."
+}
+
+# Resposta (cooldown ativo - 429):
+# Header: Retry-After: 45
+{
+  "error": "Aguarde 45 segundos antes de solicitar um novo e-mail."
+}
+
+# 6. Validar token (Introspect)
 # Opção 1: Via body
 curl -X POST http://localhost:8787/auth/introspect \
   -H "Content-Type: application/json" \
@@ -522,6 +547,7 @@ O sistema implementa **rotação automática de refresh tokens** para máxima se
 - ✅ Sessões de refresh rotacionadas automaticamente
 - ✅ Proteção contra timing attacks
 - ✅ Rate limiting por IP/email
+- ✅ Cooldown de 60s para reenvio de e-mails (com header `Retry-After`)
 
 ---
 

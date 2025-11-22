@@ -70,5 +70,11 @@ export function createAuthRoutes() {
     return controller.confirmVerification(c.req.raw);
   });
 
+  // POST /auth/resend-verification (rate limited)
+  router.post("/resend-verification", authRateLimit, async (c) => {
+    const controller = new AuthController(c.env);
+    return controller.resendVerification(c.req.raw);
+  });
+
   return router;
 }
