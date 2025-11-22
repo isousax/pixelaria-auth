@@ -6,12 +6,15 @@ info:
     API de autenticação completa com JWT, rate limiting e RBAC.
     
     ## Características
-    - 🔐 Autenticação JWT (RS256/HS256)
+    - 🔐 Autenticação JWT (RS256/HS256) com claims padrão (sub, iss, aud)
     - 🚦 Rate limiting inteligente
     - 👥 RBAC (Role-Based Access Control)
-    - ✉️ Verificação de email via link seguro (token UUID)
-    - 🔄 Refresh tokens com rotação
-    - 🔑 Reset de senha seguro
+    - ✉️ Verificação de email via link seguro
+    - 📧 Reenvio de email de verificação com cooldown
+    - 🔄 Refresh tokens com rotação automática
+    - 🔑 Reset de senha seguro com cooldown
+    - 🛡️ Revogação de tokens (JTI blacklist)
+    - ⏰ Jobs agendados para limpeza automática
     
     ## Autenticação
     A maioria dos endpoints públicos não requer autenticação.
@@ -20,8 +23,9 @@ info:
     ## Rate Limiting
     Endpoints sensíveis têm limites de requisições:
     - Login/Register: 5 req/min
-    - Password Reset: 3 req/5min
+    - Password Reset: 3 req/5min + cooldown 60s
     - Change Password: 3 req/5min
+    - Resend Verification: 5 req/min + cooldown 60s
     
     Headers de resposta:
     - `X-RateLimit-Limit`: Limite máximo
@@ -155,7 +159,12 @@ paths:
       tags:
         - Authentication
       summary: Logout de usuário
-      description: Invalida o refresh token da sessão atual
+      description: |
+        Invalida a sessão atual e revoga o access token.
+        
+        **Revogação**: Access token é adicionado à blacklist JTI.
+        
+        **Sessão**: Refresh token é revogado (não deletado).
       operationId: logout
       requestBody:
         required: true
@@ -192,7 +201,12 @@ paths:
       tags:
         - Token Management
       summary: Renovar tokens
-      description: Gera novo access token usando refresh token válido
+      description: |
+        Gera novo access token e rotaciona refresh token.
+        
+        **Rotação**: Refresh token antigo é invalidado e novo é gerado.
+        
+        **Segurança**: Previne replay attacks através de rotação obrigatória.
       operationId: refresh
       requestBody:
         required: true
@@ -291,13 +305,82 @@ paths:
               schema:
                 $ref: '#/components/schemas/RateLimitError'
 
+  /auth/resend-verification:
+    post:
+      tags:
+        - Email Verification
+      summary: Reenviar email de verificação
+      description: |
+        Reenvia email de verificação para usuário com email não confirmado.
+        
+        **Rate Limit**: 5 requisições/minuto por IP
+        
+        **Cooldown**: 60 segundos entre envios (retorna 429 com header Retry-After)
+        
+        **Segurança**: Retorna erro específico se email já confirmado.
+      operationId: resendVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: usuario@example.com
+      responses:
+        '200':
+          description: Email reenviado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: E-mail de verificação reenviado com sucesso. Verifique sua caixa de entrada.
+        '400':
+          description: Email já confirmado ou não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Cooldown ativo
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Segundos até poder reenviar
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Aguarde 45 segundos antes de solicitar um novo e-mail.
+        '500':
+          description: Erro ao enviar email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /auth/confirm-verification:
     post:
       tags:
         - Email Verification
-      summary: Confirmar email via token UUID
+      summary: Confirmar email via token
       description: |
-        Confirma email usando token UUID enviado por email.
+        Confirma email usando token enviado por email.
         
         **Idempotente**: Se email já confirmado, retorna sucesso sem gerar novos tokens.
       operationId: confirmVerificationToken
@@ -344,6 +427,8 @@ paths:
         Envia email com link de reset de senha.
         
         **Rate Limit**: 3 requisições/5 minutos por IP
+        
+        **Cooldown**: 60 segundos entre envios (silencioso - não expõe ao cliente)
         
         **Segurança**: Sempre retorna sucesso para prevenir enumeração de emails.
       operationId: requestPasswordReset
@@ -482,6 +567,13 @@ paths:
                   format: password
                   minLength: 8
                   example: NovaSenha456!
+                  description: |
+                    Requisitos:
+                    - Mínimo 8 caracteres
+                    - Pelo menos 1 letra maiúscula
+                    - Pelo menos 1 letra minúscula
+                    - Pelo menos 1 número
+                    - **Deve ser diferente da senha atual**
       responses:
         '200':
           description: Senha alterada com sucesso
@@ -695,21 +787,14 @@ components:
             role:
               type: string
               example: user
-              enum: [user, admin, nutritionist]
-            display_name:
-              type: string
-              example: João Silva
-            full_name:
-              type: string
-              nullable: true
-              example: João da Silva Santos
+              enum: [user, admin]
 
     JWTPayload:
       type: object
       properties:
         sub:
           type: string
-          description: User ID
+          description: User ID (padrão JWT RFC 7519)
           example: 550e8400-e29b-41d4-a716-446655440000
         email:
           type: string
@@ -717,33 +802,26 @@ components:
         role:
           type: string
           example: user
-        full_name:
-          type: string
-          nullable: true
-          example: João Silva
-        phone:
-          type: string
-          nullable: true
-          example: "+5511987654321"
-        birth_date:
-          type: string
-          nullable: true
-          example: "1990-01-15"
+          enum: [user, admin]
+        sessionVersion:
+          type: integer
+          description: Versão da sessão (incrementa ao trocar senha)
+          example: 0
         iss:
           type: string
           description: Issuer (SITE_DNS)
-          example: auth.server.com
+          example: https://pixelaria.com.br
         aud:
           type: string
           description: Audience (SITE_DNS)
-          example: auth.server.com
+          example: https://pixelaria.com.br
         exp:
           type: integer
           description: Expiration timestamp (Unix)
           example: 1730588400
         jti:
           type: string
-          description: JWT ID (para revogação)
+          description: JWT ID (para revogação via blacklist)
           example: 7f3b4c5d-6e8f-9a0b-1c2d-3e4f5a6b7c8d
 
     ErrorResponse:

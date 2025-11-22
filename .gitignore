@@ -171,6 +171,8 @@ dist
 .dev.vars
 .wrangler/
 
+# Generated files
+src/api/routes/openapi-content.ts
 
 SUMMARY.md
 OPENAPI.md

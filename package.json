@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy",
+    "deploy": "npm run generate-openapi && wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types",
@@ -11,7 +11,8 @@
     "test:unit": "node --test tests/unit/**/*.test.ts",
     "test:integration": "node --test tests/integration/**/*.test.ts",
     "seed": "node scripts/seed-dev-data.js",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "generate-openapi": "node scripts/generate-openapi-content.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
