@@ -60,6 +60,9 @@ export const changePasswordSchema = z.object({
     .regex(/[A-Z]/, { message: "A senha deve conter pelo menos uma letra maiúscula." })
     .regex(/[a-z]/, { message: "A senha deve conter pelo menos uma letra minúscula." })
     .regex(/[0-9]/, { message: "A senha deve conter pelo menos um número." }),
+}).refine((data) => data.current_password !== data.new_password, {
+  message: "A nova senha deve ser diferente da senha atual.",
+  path: ["new_password"],
 });
 
 /**
