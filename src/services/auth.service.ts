@@ -549,7 +549,7 @@ export class AuthService {
     const link = `${base}/confirm-email?token=${encodeURIComponent(plainToken)}`;
 
     try {
-      await sendVerificationEmail(this.env.BREVO_API_KEY, email, link);
+      await sendVerificationEmail(this.env, email, link);
       console.info("[AuthService.resendVerificationEmail] E-mail reenviado com sucesso para:", email);
 
       return {
