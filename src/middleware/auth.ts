@@ -6,7 +6,7 @@ import { verifyAccessToken } from "../service/tokenVerify";
  * Payload do JWT decodificado
  */
 export interface JWTPayload {
-  sub: string; // user_id
+  sub: string; // user_id (padrão JWT RFC 7519)
   email: string;
   role: string;
   full_name?: string;

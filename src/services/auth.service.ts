@@ -170,7 +170,7 @@ export class AuthService {
 
     const accessToken = await generateJWT(
       {
-        userId: user.id,
+        sub: user.id,
         email: user.email,
         role: user.role,
         sessionVersion: user.session_version,
@@ -630,7 +630,7 @@ export class AuthService {
 
     const accessToken = await generateJWT(
       {
-        userId: user.id,
+        sub: user.id,
         email: user.email,
         role: user.role,
         sessionVersion: user.session_version,
