@@ -13,6 +13,7 @@ import {
 import { generateToken } from "../utils/generateToken";
 import { hashToken } from "../utils/hashToken";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail";
+import { sendPasswordResetEmail } from "../utils/sendPasswordResetEmail";
 import {
   revokeAccessToken,
   revokeAllUserTokens,
@@ -721,8 +722,17 @@ export class AuthService {
       .bind(user.id, hashedToken, expiresAt)
       .run();
 
-    // Enviar email (implementar)
-    // await sendPasswordResetEmail(this.env, email, plainToken);
+    // Montar link de reset e enviar e-mail
+    const base = this.env.SITE_DNS || "http://localhost:8787";
+    const link = `${base}/reset-password?token=${encodeURIComponent(plainToken)}`;
+    
+    try {
+      await sendPasswordResetEmail(this.env, email, link);
+      console.info("[AuthService.requestPasswordReset] E-mail de reset enviado para:", email);
+    } catch (error) {
+      console.error("[AuthService.requestPasswordReset] Erro ao enviar e-mail:", error);
+      // Não falha a requisição para não vazar informação de usuários existentes
+    }
 
     return {
       success: true,
