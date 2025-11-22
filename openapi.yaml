@@ -39,7 +39,7 @@ info:
     name: MIT
     
 servers:
-  - url: https://auth.server.com
+  - url: https://auth.pixelaria.com.br
     description: Produção
   - url: http://localhost:8787
     description: Desenvolvimento local
