@@ -57,6 +57,9 @@ wrangler d1 execute auth-engine-db --remote --file=./schema.sql
 # Migrações incrementais (se aplicável)
 wrangler d1 execute auth-engine-db --local --file=./migrations/001_add_last_sent_at.sql
 wrangler d1 execute auth-engine-db --remote --file=./migrations/001_add_last_sent_at.sql
+
+wrangler d1 execute auth-engine-db --local --file=./migrations/002_add_last_sent_at_password_reset.sql
+wrangler d1 execute auth-engine-db --remote --file=./migrations/002_add_last_sent_at_password_reset.sql
 ```
 
 5. Inicie o servidor de desenvolvimento:
@@ -547,7 +550,8 @@ O sistema implementa **rotação automática de refresh tokens** para máxima se
 - ✅ Sessões de refresh rotacionadas automaticamente
 - ✅ Proteção contra timing attacks
 - ✅ Rate limiting por IP/email
-- ✅ Cooldown de 60s para reenvio de e-mails (com header `Retry-After`)
+- ✅ Cooldown de 60s para reenvio de e-mails de verificação
+- ✅ Cooldown de 60s para solicitação de reset de senha (proteção contra DoS/spam)
 
 ---
 

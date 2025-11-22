@@ -711,19 +711,49 @@ export class AuthService {
       };
     }
 
+    // Verificar cooldown (60 segundos entre envios)
+    const COOLDOWN_SECONDS = 60;
+    const existingToken = await this.env.DB.prepare(
+      "SELECT last_sent_at FROM password_reset_tokens WHERE user_id = ?"
+    )
+      .bind(user.id)
+      .first<{ last_sent_at: string }>();
+
+    if (existingToken?.last_sent_at) {
+      const lastSentAt = new Date(existingToken.last_sent_at).getTime();
+      const now = Date.now();
+      const elapsedSeconds = Math.floor((now - lastSentAt) / 1000);
+      const remainingSeconds = COOLDOWN_SECONDS - elapsedSeconds;
+
+      if (remainingSeconds > 0) {
+        console.warn(
+          `[AuthService.requestPasswordReset] Cooldown ativo para ${email}: ${remainingSeconds}s restantes`
+        );
+        // Retorna sucesso para não vazar informação de usuários
+        return {
+          success: true,
+          data: {
+            message:
+              "Se o e-mail estiver cadastrado, você receberá instruções para redefinir sua senha.",
+          },
+        };
+      }
+    }
+
     // Gerar token de reset
     const plainToken = await generateToken();
     const hashedToken = await hashToken(plainToken);
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 min
 
-    // Upsert: substitui token anterior se existir
+    // Upsert: substitui token anterior se existir e registra envio
     await this.env.DB.prepare(
-      `INSERT INTO password_reset_tokens (user_id, token, expires_at, used)
-       VALUES (?, ?, ?, 0)
+      `INSERT INTO password_reset_tokens (user_id, token, expires_at, used, last_sent_at)
+       VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
        ON CONFLICT(user_id) DO UPDATE SET
          token = excluded.token,
          expires_at = excluded.expires_at,
          created_at = CURRENT_TIMESTAMP,
+         last_sent_at = CURRENT_TIMESTAMP,
          used = 0`
     )
       .bind(user.id, hashedToken, expiresAt)
