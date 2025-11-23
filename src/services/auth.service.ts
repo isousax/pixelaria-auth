@@ -1024,4 +1024,67 @@ export class AuthService {
       },
     };
   }
+
+  /**
+   * Atualiza perfil do usuário autenticado
+   */
+  async updateProfile(
+    userId: string,
+    data: {
+      full_name: string;
+      display_name?: string | null;
+      phone: string;
+      birth_date?: string | null;
+    }
+  ) {
+    console.log("[AuthService.updateProfile] Atualizando perfil do usuário:", userId);
+
+    const userRepository = new UserRepository(this.env);
+
+    // Atualizar perfil
+    const result = await userRepository.updateProfile(userId, data);
+
+    if (!result.success) {
+      console.error("[AuthService.updateProfile] Erro ao atualizar perfil:", result.error);
+      return {
+        success: false,
+        error: {
+          message: result.error || "Erro ao atualizar perfil.",
+          code: "UPDATE_PROFILE_FAILED",
+        },
+      };
+    }
+
+    // Buscar perfil atualizado
+    const user = await userRepository.findById(userId);
+
+    if (!user) {
+      console.error("[AuthService.updateProfile] Usuário não encontrado após atualização:", userId);
+      return {
+        success: false,
+        error: {
+          message: "Erro ao buscar perfil atualizado.",
+          code: "USER_NOT_FOUND",
+        },
+      };
+    }
+
+    console.log("[AuthService.updateProfile] Perfil atualizado com sucesso");
+
+    return {
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name || "",
+        display_name: user.display_name,
+        phone: user.phone || "",
+        birth_date: user.birth_date,
+        role: user.role,
+        email_confirmed: user.email_confirmed === 1,
+        created_at: user.created_at || "",
+        session_version: user.session_version,
+      },
+    };
+  }
 }

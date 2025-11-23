@@ -174,4 +174,55 @@ export class UserRepository {
 
     return users.results || [];
   }
+
+  /**
+   * Atualiza perfil do usuário
+   * Retorna o perfil atualizado se birth_date estiver sendo alterado de null para um valor
+   */
+  async updateProfile(
+    userId: string,
+    data: {
+      full_name: string;
+      display_name?: string | null;
+      phone: string;
+      birth_date?: string | null;
+    }
+  ): Promise<{ success: boolean; error?: string }> {
+    // Verificar se birth_date já existe (imutável após definido)
+    if (data.birth_date !== undefined && data.birth_date !== null) {
+      const currentProfile = await this.env.DB.prepare(
+        `SELECT birth_date FROM user_profiles WHERE user_id = ?`
+      )
+        .bind(userId)
+        .first<{ birth_date?: string | null }>();
+
+      if (currentProfile?.birth_date && currentProfile.birth_date !== data.birth_date) {
+        return {
+          success: false,
+          error: "Data de nascimento não pode ser alterada após ser definida.",
+        };
+      }
+    }
+
+    // Atualizar user_profiles
+    await this.env.DB.prepare(
+      `UPDATE user_profiles 
+       SET full_name = ?, 
+           display_name = ?, 
+           phone = ?, 
+           birth_date = COALESCE(?, birth_date),
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE user_id = ?`
+    )
+      .bind(
+        data.full_name,
+        data.display_name ?? null,
+        data.phone,
+        data.birth_date ?? null,
+        userId
+      )
+      .run();
+
+    return { success: true };
+  }
 }

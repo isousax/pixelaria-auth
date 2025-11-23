@@ -87,6 +87,46 @@ export const confirmVerificationTokenSchema = z.object({
   token: z.string().min(1, { message: "Token é obrigatório." }),
 });
 
+/**
+ * Schema para atualização de perfil
+ */
+export const updateProfileSchema = z
+  .object({
+    full_name: z
+      .string()
+      .min(3, { message: "Nome completo deve ter pelo menos 3 caracteres." })
+      .max(100, { message: "Nome completo deve ter no máximo 100 caracteres." }),
+    display_name: z
+      .string()
+      .min(2, { message: "Nome de exibição deve ter pelo menos 2 caracteres." })
+      .max(50, { message: "Nome de exibição deve ter no máximo 50 caracteres." })
+      .nullable()
+      .optional(),
+    phone: z
+      .string()
+      .regex(/^\+55\d{10,11}$/, { 
+        message: "Telefone deve estar no formato internacional +55XXXXXXXXXXX" 
+      }),
+    birth_date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Data de nascimento deve estar no formato YYYY-MM-DD" })
+      .refine(
+        (val) => {
+          const birthDate = new Date(val);
+          const today = new Date();
+          const age = today.getFullYear() - birthDate.getFullYear();
+          const monthDiff = today.getMonth() - birthDate.getMonth();
+          const dayDiff = today.getDate() - birthDate.getDate();
+          const adjustedAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
+          return adjustedAge >= 18;
+        },
+        { message: "Você deve ter pelo menos 18 anos." }
+      )
+      .nullable()
+      .optional(),
+  })
+  .strict();
+
 // Tipos TypeScript inferidos dos schemas
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -96,3 +136,4 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
 export type LogoutInput = z.infer<typeof logoutSchema>;
 export type ConfirmVerificationTokenInput = z.infer<typeof confirmVerificationTokenSchema>;
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

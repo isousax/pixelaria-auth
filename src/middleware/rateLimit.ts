@@ -208,3 +208,13 @@ export const generalRateLimit = rateLimit({
   windowSeconds: 60,
   message: "Muitas requisições. Aguarde antes de tentar novamente.",
 });
+
+/**
+ * Rate limit pré-configurado para atualização de perfil
+ * 10 requisições por minuto
+ */
+export const profileRateLimit = rateLimit({
+  maxRequests: 10,
+  windowSeconds: 60,
+  message: "Muitas atualizações de perfil. Aguarde 1 minuto.",
+});

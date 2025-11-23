@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { AuthController } from "../../controllers/auth.controller";
 import { jwksHandler } from "../../utils/jwks";
 import { requireAuth, getAuthUser, type AppContext } from "../../middleware/auth";
-import { authRateLimit, strictRateLimit } from "../../middleware/rateLimit";
+import { authRateLimit, strictRateLimit, profileRateLimit } from "../../middleware/rateLimit";
 
 /**
  * Rotas de autenticação
@@ -81,6 +81,13 @@ export function createAuthRoutes() {
     const controller = new AuthController(c.env);
     const user = getAuthUser(c);
     return controller.getProfile(user);
+  });
+
+  // PUT /auth/profile (requer autenticação + rate limit)
+  router.put("/profile", profileRateLimit, requireAuth, async (c) => {
+    const controller = new AuthController(c.env);
+    const user = getAuthUser(c);
+    return controller.updateProfile(c.req.raw, user);
   });
 
   return router;

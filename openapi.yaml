@@ -41,8 +41,6 @@ info:
 servers:
   - url: https://auth.pixelaria.com.br
     description: Produção
-  - url: http://localhost:8787
-    description: Desenvolvimento local
 
 tags:
   - name: Authentication
@@ -91,7 +89,9 @@ paths:
                 remember:
                   type: boolean
                   default: false
-                  description: Se true, refresh token dura 30 dias. Se false, 7 dias.
+                  description: |
+                    Se true, refresh token dura 30 dias. Se false, 7 dias.
+                    Esta informação é retornada no campo `remember_me` do response.
       responses:
         '200':
           description: Login realizado com sucesso
@@ -207,6 +207,8 @@ paths:
         **Rotação**: Refresh token antigo é invalidado e novo é gerado.
         
         **Segurança**: Previne replay attacks através de rotação obrigatória.
+        
+        **Melhoria**: Agora retorna dados do usuário no response para evitar chamada extra ao /auth/me
       operationId: refresh
       requestBody:
         required: true
@@ -240,6 +242,18 @@ paths:
                   expires_in:
                     type: integer
                     example: 3600
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: 550e8400-e29b-41d4-a716-446655440000
+                      email:
+                        type: string
+                        example: usuario@example.com
+                      role:
+                        type: string
+                        example: user
         '401':
           description: Refresh token inválido ou expirado
           content:
@@ -607,6 +621,238 @@ paths:
               schema:
                 $ref: '#/components/schemas/RateLimitError'
 
+  /auth/me:
+    get:
+      tags:
+        - Token Management
+      summary: Obter perfil do usuário autenticado
+      description: |
+        Retorna dados completos do perfil do usuário autenticado.
+        
+        **Autenticação**: Requer JWT válido no header Authorization
+      operationId: getProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Perfil retornado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+                  email:
+                    type: string
+                    example: usuario@example.com
+                  full_name:
+                    type: string
+                    example: João Silva
+                  display_name:
+                    type: string
+                    example: João
+                    nullable: true
+                  phone:
+                    type: string
+                    example: "+5511987654321"
+                  birth_date:
+                    type: string
+                    format: date
+                    example: "1990-01-15"
+                    nullable: true
+                  role:
+                    type: string
+                    example: user
+                    enum: [user, admin]
+                  email_confirmed:
+                    type: boolean
+                    example: true
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: "2024-06-15T10:30:00Z"
+                  session_version:
+                    type: integer
+                    example: 0
+        '401':
+          description: Token inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+
+  /auth/profile:
+    put:
+      tags:
+        - Token Management
+      summary: Atualizar perfil do usuário autenticado
+      description: |
+        Atualiza dados do perfil do usuário autenticado.
+        
+        **Campos editáveis:**
+        - full_name (obrigatório)
+        - display_name (opcional)
+        - phone (obrigatório, formato internacional +55XXXXXXXXXXX)
+        - birth_date (opcional, mas após definido não pode ser alterado)
+        
+        **Campos NÃO editáveis:**
+        - email (imutável)
+        - role (apenas admin pode alterar)
+        - email_confirmed (apenas via verificação de email)
+        
+        **Autenticação**: Requer JWT válido no header Authorization
+        
+        **Rate Limiting**: 10 req/min
+      operationId: updateProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - full_name
+                - phone
+              properties:
+                full_name:
+                  type: string
+                  minLength: 3
+                  maxLength: 100
+                  example: João Silva Santos
+                  description: Nome completo do usuário
+                display_name:
+                  type: string
+                  minLength: 2
+                  maxLength: 50
+                  example: João
+                  nullable: true
+                  description: Nome de exibição (apelido)
+                phone:
+                  type: string
+                  pattern: '^\+55\d{10,11}$'
+                  example: "+5511987654321"
+                  description: Telefone no formato internacional (+55 + DDD + número)
+                birth_date:
+                  type: string
+                  format: date
+                  example: "1990-01-15"
+                  nullable: true
+                  description: Data de nascimento (YYYY-MM-DD). Após definido, não pode ser alterado.
+      responses:
+        '200':
+          description: Perfil atualizado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Perfil atualizado com sucesso
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        example: 550e8400-e29b-41d4-a716-446655440000
+                      email:
+                        type: string
+                        example: usuario@example.com
+                      full_name:
+                        type: string
+                        example: João Silva Santos
+                      display_name:
+                        type: string
+                        example: João
+                        nullable: true
+                      phone:
+                        type: string
+                        example: "+5511987654321"
+                      birth_date:
+                        type: string
+                        format: date
+                        example: "1990-01-15"
+                        nullable: true
+                      role:
+                        type: string
+                        example: user
+                      email_confirmed:
+                        type: boolean
+                        example: true
+                      created_at:
+                        type: string
+                        format: date-time
+                        example: "2024-06-15T10:30:00Z"
+                      session_version:
+                        type: integer
+                        example: 0
+        '400':
+          description: Dados inválidos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Nome completo deve ter entre 3 e 100 caracteres
+                  field:
+                    type: string
+                    example: full_name
+              examples:
+                invalidName:
+                  value:
+                    error: Nome completo deve ter entre 3 e 100 caracteres
+                    field: full_name
+                invalidPhone:
+                  value:
+                    error: Telefone deve estar no formato internacional +55XXXXXXXXXXX
+                    field: phone
+                birthDateImmutable:
+                  value:
+                    error: Data de nascimento não pode ser alterada após ser definida
+                    field: birth_date
+                invalidBirthDate:
+                  value:
+                    error: Você deve ter pelo menos 18 anos
+                    field: birth_date
+        '401':
+          description: Token inválido ou expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthError'
+        '429':
+          description: Rate limit excedido
+          headers:
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+              description: Limite de requisições
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+              description: Requisições restantes
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+              description: Timestamp Unix de reset
+            Retry-After:
+              schema:
+                type: integer
+              description: Segundos até poder tentar novamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+
   /auth/introspect:
     post:
       tags:
@@ -775,6 +1021,10 @@ components:
           type: integer
           example: 3600
           description: Tempo de vida do access token em segundos
+        remember_me:
+          type: boolean
+          example: false
+          description: Indica se o refresh token tem duração estendida (30 dias) ou padrão (7 dias)
         user:
           type: object
           properties:

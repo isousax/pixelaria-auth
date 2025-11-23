@@ -9,6 +9,7 @@ import {
   refreshTokenSchema,
   logoutSchema,
   confirmVerificationTokenSchema,
+  updateProfileSchema,
 } from "../validators/auth.validators";
 import { normalizePhone, phoneErrorMessage } from "../utils/normalizePhone";
 import { verifyAccessToken } from "../service/tokenVerify";
@@ -519,5 +520,72 @@ export class AuthController {
 
     console.log("[AuthController.getProfile] Perfil retornado com sucesso");
     return jsonResponse(result.data, 200);
+  }
+
+  /**
+   * PUT /auth/profile
+   * Atualiza perfil do usuário autenticado
+   */
+  async updateProfile(request: Request, user: { sub: string; email: string; role: string }) {
+    console.log("[AuthController.updateProfile] Atualizando perfil do usuário:", user.sub);
+
+    if (!user || !user.sub) {
+      console.error("[AuthController.updateProfile] Usuário não autenticado ou sub ausente");
+      return jsonResponse(
+        { error: "Token não autorizado." },
+        401
+      );
+    }
+
+    // Parse e validar body
+    let body;
+    try {
+      body = await request.json();
+    } catch (err) {
+      console.error("[AuthController.updateProfile] Erro ao parsear JSON:", err);
+      return jsonResponse(
+        { error: "Corpo da requisição inválido." },
+        400
+      );
+    }
+
+    const validation = updateProfileSchema.safeParse(body);
+
+    if (!validation.success) {
+      const firstError = validation.error.errors[0];
+      console.warn("[AuthController.updateProfile] Validação falhou:", firstError);
+      return jsonResponse(
+        {
+          error: firstError.message,
+          field: firstError.path.join("."),
+        },
+        400
+      );
+    }
+
+    const result = await this.authService.updateProfile(user.sub, {
+      full_name: validation.data.full_name,
+      display_name: validation.data.display_name,
+      phone: validation.data.phone,
+      birth_date: validation.data.birth_date,
+    });
+
+    if (!result.success) {
+      console.error("[AuthController.updateProfile] Falha ao atualizar perfil:", result.error);
+      return jsonResponse(
+        { error: result.error?.message || "Erro ao atualizar perfil." },
+        400
+      );
+    }
+
+    console.log("[AuthController.updateProfile] Perfil atualizado com sucesso");
+    return jsonResponse(
+      {
+        ok: true,
+        message: "Perfil atualizado com sucesso",
+        user: result.data,
+      },
+      200
+    );
   }
 }
