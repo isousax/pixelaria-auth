@@ -991,10 +991,12 @@ export class AuthService {
    * Retorna perfil completo do usuário autenticado
    */
   async getProfile(userId: string) {
+    console.log("[AuthService.getProfile] Buscando usuário:", userId);
     const userRepository = new UserRepository(this.env);
     const user = await userRepository.findById(userId);
 
     if (!user) {
+      console.error("[AuthService.getProfile] Usuário não encontrado:", userId);
       return {
         success: false,
         error: {
@@ -1003,6 +1005,8 @@ export class AuthService {
         },
       };
     }
+
+    console.log("[AuthService.getProfile] Usuário encontrado:", { id: user.id, email: user.email });
 
     return {
       success: true,

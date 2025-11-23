@@ -42,6 +42,7 @@ export async function requireAuth(
   const authHeader = c.req.header("Authorization");
   
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    console.warn("[requireAuth] Token ausente ou formato inválido");
     return c.json(
       { 
         error: "Não autorizado. Token de autenticação ausente.",
@@ -54,6 +55,7 @@ export async function requireAuth(
   const token = authHeader.slice(7).trim();
 
   if (!token) {
+    console.warn("[requireAuth] Token vazio após Bearer");
     return c.json(
       { 
         error: "Não autorizado. Token de autenticação inválido.",
@@ -70,6 +72,7 @@ export async function requireAuth(
   });
 
   if (!valid || !payload) {
+    console.warn("[requireAuth] Token inválido:", { valid, reason, hasSub: !!payload?.sub });
     const errorMessages: Record<string, string> = {
       expired: "Token expirado. Faça login novamente.",
       invalid_signature: "Token inválido. Faça login novamente.",
@@ -91,6 +94,7 @@ export async function requireAuth(
 
   // Adicionar dados do usuário ao contexto
   c.set("user", payload as JWTPayload);
+  console.log("[requireAuth] Token válido. Usuário autenticado:", payload.sub);
 
   await next();
 }

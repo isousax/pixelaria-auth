@@ -79,7 +79,8 @@ export function createAuthRoutes() {
   // GET /auth/me (requer autenticação)
   router.get("/me", requireAuth, async (c) => {
     const controller = new AuthController(c.env);
-    return controller.getProfile(c.req.raw);
+    const user = getAuthUser(c);
+    return controller.getProfile(user);
   });
 
   return router;
