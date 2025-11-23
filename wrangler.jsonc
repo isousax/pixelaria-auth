@@ -9,7 +9,7 @@
 	"vars": {
 		"SITE_DNS": "https://pixelaria.com.br",
 		"EMAIL_FROM": "Pixelaria <no-reply@pixelaria.com.br>",
-		"EMAIL_REPLY_TO": "atendimentopixelaria@gmail.com",
+		"EMAIL_REPLY_TO": "contato@pixelaria.com.br",
 		"JWT_EXPECTED_ISSUER": "https://pixelaria.com.br",
 		"JWT_EXPECTED_AUDIENCE": "https://pixelaria.com.br",
 		"JWT_JWKS_KID": "k1",

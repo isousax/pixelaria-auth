@@ -250,7 +250,7 @@ export async function sendPasswordResetEmail(
             <div>Transformando ideias em experiências digitais memoráveis</div>
             
             <div class="contact">
-                Dúvidas sobre segurança? <a href="mailto:atendimentopixelaria@gmail.com" style="color: #6D28D9; text-decoration: none; font-weight: 500;">atendimentopixelaria@gmail.com</a>
+                Dúvidas sobre segurança? <a href="mailto:suporte@pixelaria.com.br" style="color: #6D28D9; text-decoration: none; font-weight: 500;">suporte@pixelaria.com.br</a>
             </div>
             
             <div class="social-links">

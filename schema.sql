@@ -32,9 +32,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_last_login_at ON users(last_login_at);
 
--- ===================================================================
 -- USER PROFILES
--- ===================================================================
 CREATE TABLE IF NOT EXISTS user_profiles (
   id TEXT PRIMARY KEY DEFAULT (
     lower(
