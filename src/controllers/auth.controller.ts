@@ -109,11 +109,17 @@ export class AuthController {
           ? { "Retry-After": String(result.error.retryAfterSec) }
           : undefined;
 
-      return jsonResponse(
-        { error: result.error?.message },
-        statusCode,
-        extraHeaders
-      );
+      // Incluir retry_after_seconds no body quando for 429
+      const responseBody =
+        statusCode === 429 && result.error?.retryAfterSec !== undefined
+          ? {
+              error: result.error.message,
+              code: result.error.code,
+              retry_after_seconds: result.error.retryAfterSec,
+            }
+          : { error: result.error?.message };
+
+      return jsonResponse(responseBody, statusCode, extraHeaders);
     }
 
     return jsonResponse(result.data, 200);
@@ -409,15 +415,22 @@ export class AuthController {
     );
 
     if (!result.success) {
-      // Se for rate limit, adicionar header Retry-After
+      // Se for rate limit, adicionar header Retry-After E campo no body
       if (result.error?.code === "RATE_LIMITED" && result.error.retryAfterSec) {
-        return new Response(JSON.stringify({ error: result.error.message }), {
-          status: 429,
-          headers: {
-            "Content-Type": "application/json",
-            "Retry-After": result.error.retryAfterSec.toString(),
-          },
-        });
+        return new Response(
+          JSON.stringify({
+            error: result.error.message,
+            code: "RATE_LIMITED",
+            retry_after_seconds: result.error.retryAfterSec,
+          }),
+          {
+            status: 429,
+            headers: {
+              "Content-Type": "application/json",
+              "Retry-After": result.error.retryAfterSec.toString(),
+            },
+          }
+        );
       }
 
       const statusCode =

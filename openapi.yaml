@@ -381,6 +381,12 @@ paths:
                   error:
                     type: string
                     example: Aguarde 45 segundos antes de solicitar um novo e-mail.
+                  code:
+                    type: string
+                    example: RATE_LIMITED
+                  retry_after_seconds:
+                    type: integer
+                    example: 45
         '500':
           description: Erro ao enviar email
           content:
