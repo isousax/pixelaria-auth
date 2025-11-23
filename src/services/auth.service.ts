@@ -986,4 +986,38 @@ export class AuthService {
       },
     };
   }
+
+  /**
+   * Retorna perfil completo do usuário autenticado
+   */
+  async getProfile(userId: string) {
+    const userRepository = new UserRepository(this.env);
+    const user = await userRepository.findById(userId);
+
+    if (!user) {
+      return {
+        success: false,
+        error: {
+          message: "Usuário não encontrado.",
+          code: "USER_NOT_FOUND",
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name || "",
+        display_name: user.display_name,
+        phone: user.phone || "",
+        birth_date: user.birth_date,
+        role: user.role,
+        email_confirmed: user.email_confirmed === 1,
+        created_at: user.created_at || "",
+        session_version: user.session_version,
+      },
+    };
+  }
 }

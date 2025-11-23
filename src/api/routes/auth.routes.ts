@@ -76,5 +76,11 @@ export function createAuthRoutes() {
     return controller.resendVerification(c.req.raw);
   });
 
+  // GET /auth/me (requer autenticação)
+  router.get("/me", requireAuth, async (c) => {
+    const controller = new AuthController(c.env);
+    return controller.getProfile(c.req.raw);
+  });
+
   return router;
 }

@@ -491,4 +491,31 @@ export class AuthController {
 
     return null;
   }
+
+  /**
+   * GET /auth/me
+   * Retorna perfil do usuário autenticado
+   */
+  async getProfile(request: Request) {
+    // Extrair user do contexto (preenchido pelo middleware requireAuth)
+    const user = (request as any).user;
+    
+    if (!user || !user.sub) {
+      return jsonResponse(
+        { error: "Token não autorizado." },
+        401
+      );
+    }
+
+    const result = await this.authService.getProfile(user.sub);
+
+    if (!result.success) {
+      return jsonResponse(
+        { error: result.error?.message || "Erro ao buscar perfil." },
+        404
+      );
+    }
+
+    return jsonResponse(result.data, 200);
+  }
 }
