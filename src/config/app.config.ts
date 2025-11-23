@@ -29,7 +29,7 @@ export class AppConfig {
     // CORS origins - usar FRONTEND_URL como fallback
     this.corsOrigins = env.FRONTEND_URL
       ? [env.FRONTEND_URL]
-      : ["http://localhost:3000"];
+      : ["http://localhost:5173"];
 
     // Environment - inferir do contexto
     this.environment = "production"; // Default seguro
